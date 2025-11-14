@@ -6948,123 +6948,91 @@ const themeByCateGory = [
   },
 ];
 
-// const https = require("https");
+const https = require("https");
 const fs = require("fs");
-// const path = require("path");
+const path = require("path");
 
-fs.writeFileSync("./themes", JSON.stringify(DetailThemeByType, null, 2));
-fs.writeFileSync(
-  "./themesGroupByCategory",
-  JSON.stringify(themeByCateGory, null, 2)
-);
+const BASE_URL =
+  "https://cdn.jsdelivr.net/gh/eywinapp/applockthemes@v1_4_0/assets/";
+const DOWNLOAD_DIR = "./images";
 
-// const BASE_URL =
-//   "https://cdn.jsdelivr.net/gh/eywinapp/applockthemes@v1_4_0/assets/";
-// const DOWNLOAD_DIR = "./images";
+// Tạo thư mục download nếu chưa có
+if (!fs.existsSync(DOWNLOAD_DIR)) {
+  fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
+}
 
-// // Tạo thư mục download nếu chưa có
-// if (!fs.existsSync(DOWNLOAD_DIR)) {
-//   fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
-// }
+// Hàm download file
+function downloadImage(url, filepath) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(filepath);
 
-// // Hàm download file
-// function downloadImage(url, filepath) {
-//   return new Promise((resolve, reject) => {
-//     const file = fs.createWriteStream(filepath);
+    https
+      .get(url, (response) => {
+        if (response.statusCode === 200) {
+          response.pipe(file);
+          file.on("finish", () => {
+            file.close();
+            console.log(`✓ Downloaded: ${path.basename(filepath)}`);
+            resolve();
+          });
+        } else {
+          fs.unlink(filepath, () => {});
+          reject(
+            new Error(
+              `Failed to download: ${url} (Status: ${response.statusCode})`
+            )
+          );
+        }
+      })
+      .on("error", (err) => {
+        fs.unlink(filepath, () => {});
+        reject(err);
+      });
+  });
+}
 
-//     https
-//       .get(url, (response) => {
-//         if (response.statusCode === 200) {
-//           response.pipe(file);
-//           file.on("finish", () => {
-//             file.close();
-//             console.log(`✓ Downloaded: ${path.basename(filepath)}`);
-//             resolve();
-//           });
-//         } else {
-//           fs.unlink(filepath, () => {});
-//           reject(
-//             new Error(
-//               `Failed to download: ${url} (Status: ${response.statusCode})`
-//             )
-//           );
-//         }
-//       })
-//       .on("error", (err) => {
-//         fs.unlink(filepath, () => {});
-//         reject(err);
-//       });
-//   });
-// }
+// Hàm thu thập tất cả image IDs
+function collectAllImageIds(data) {
+  const imageIds = new Set();
 
-// // Hàm thu thập tất cả image IDs
-// function collectAllImageIds(data) {
-//   const imageIds = new Set();
+  data.forEach((typeGroup) => {
+    imageIds.add(typeGroup.photo_cover_id);
+  });
 
-//   data.forEach((typeGroup) => {
-//     typeGroup.themes?.forEach((theme) => {
-//       // thumb_view_id
-//       if (theme.thumb_view_id) {
-//         imageIds.add(theme.thumb_view_id);
-//       }
+  return Array.from(imageIds);
+}
 
-//       // background_view_id
-//       if (theme.background_view_id) {
-//         imageIds.add(theme.background_view_id);
-//       }
+// Hàm main để download tất cả
+async function downloadAllImages() {
+  const imageIds = collectAllImageIds(themeByCateGory);
 
-//       // filled_indicator_view_ids
-//       theme.filled_indicator_view_ids?.forEach((id) => {
-//         if (id) imageIds.add(id);
-//       });
+  console.log(`Found ${imageIds.length} unique images to download\n`);
 
-//       // empty_indicator_view_id
-//       if (theme.empty_indicator_view_id) {
-//         imageIds.add(theme.empty_indicator_view_id);
-//       }
+  let successCount = 0;
+  let failCount = 0;
 
-//       // button_views
-//       theme.button_views?.forEach((button) => {
-//         if (button.inited) imageIds.add(button.inited);
-//         if (button.clicked) imageIds.add(button.clicked);
-//       });
-//     });
-//   });
+  for (let i = 0; i < imageIds.length; i++) {
+    const imageId = imageIds[i];
+    const url = BASE_URL + imageId;
+    const filepath = path.join(DOWNLOAD_DIR, imageId);
 
-//   return Array.from(imageIds);
-// }
+    try {
+      await downloadImage(url, filepath);
+      successCount++;
+    } catch (error) {
+      console.error(`✗ Error downloading ${imageId}:`, error.message);
+      failCount++;
+    }
 
-// // Hàm main để download tất cả
-// async function downloadAllImages() {
-//   const imageIds = collectAllImageIds(DetailThemeByType);
+    // Thêm delay nhỏ để tránh quá tải server
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
 
-//   console.log(`Found ${imageIds.length} unique images to download\n`);
+  console.log(`\n=== Download Complete ===`);
+  console.log(`Success: ${successCount}`);
+  console.log(`Failed: ${failCount}`);
+  console.log(`Total: ${imageIds.length}`);
+}
 
-//   let successCount = 0;
-//   let failCount = 0;
-
-//   for (let i = 0; i < imageIds.length; i++) {
-//     const imageId = imageIds[i];
-//     const url = BASE_URL + imageId;
-//     const filepath = path.join(DOWNLOAD_DIR, imageId);
-
-//     try {
-//       await downloadImage(url, filepath);
-//       successCount++;
-//     } catch (error) {
-//       console.error(`✗ Error downloading ${imageId}:`, error.message);
-//       failCount++;
-//     }
-
-//     // Thêm delay nhỏ để tránh quá tải server
-//     await new Promise((resolve) => setTimeout(resolve, 100));
-//   }
-
-//   console.log(`\n=== Download Complete ===`);
-//   console.log(`Success: ${successCount}`);
-//   console.log(`Failed: ${failCount}`);
-//   console.log(`Total: ${imageIds.length}`);
-// }
-
-// // Chạy
-// downloadAllImages().catch(console.error);
+// Chạy
+downloadAllImages().catch(console.error);
